@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bonta - Volleyball Tracker</title>
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1e293b">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <!-- Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        @keyframes firework-particle {
+          0% { transform: rotate(var(--r)) translateY(0); opacity: 1; }
+          100% { transform: rotate(var(--r)) translateY(-40px); opacity: 0; }
+        }
+        @keyframes bounce-float {
+          0%, 100% { transform: translateY(0) rotate(-5deg); }
+          50% { transform: translateY(-100dvh) rotate(5deg); }
+        }
+        @keyframes pulse-scale {
+          0%, 100% { transform: scale(1); opacity: 0.3; }
+          50% { transform: scale(1.2); opacity: 1; }
+        }
+        .animate-firework { --r: 0deg; }
+        .animate-bounce-float { animation: bounce-float 3s ease-in-out infinite; }
+        .animate-pulse-scale { animation: pulse-scale 2s ease-in-out infinite; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #0f172a; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- Custom SVG Icons to avoid Lucide dependency issues ---
+        const IconPlus = () => <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
+        const IconMinus = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
+        const IconRotate = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>;
+        const IconTrophy = ({ className, size = 24 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>;
+        const IconSettings = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>;
+        const IconSwap = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 17H4V7h16z"></path><path d="M12 20v-3"></path><path d="M12 7V4"></path></svg>;
+        const IconVolleyball = ({ className }) => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><path d="m4.93 4.93 4.24 4.24"></path><path d="m14.83 9.17 4.24-4.24"></path><path d="m14.83 14.83 4.24 4.24"></path><path d="m9.17 14.83-4.24 4.24"></path><circle cx="12" cy="12" r="4"></circle></svg>;
+        const IconCheck = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>;
+        const IconSun = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>;
+        const IconMoon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>;
+        const IconStar = ({ size, className, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} style={style}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>;
+
+        const BontaLogo = ({ className = "w-10 h-10" }) => (
+            <svg viewBox="0 0 100 100" fill="currentColor" className={className}>
+                <circle cx="58" cy="18" r="5" />
+                <path d="M 58,25 C 55,25 50,28 48,35 L 45,55 C 44,60 40,65 35,68 L 30,75 C 28,78 32,82 35,80 L 45,72 C 48,70 52,72 55,75 L 65,85 C 68,88 72,85 70,80 L 62,65 C 60,60 62,55 65,50 L 75,40 C 78,37 75,32 70,35 L 60,42 Z" />
+                <path d="M 58,28 L 78,22 C 82,21 83,25 79,26 L 62,35 Z" />
+                <path d="M 50,30 L 38,22 C 35,20 32,24 35,26 L 48,38 Z" />
+                <circle cx="85" cy="15" r="6" />
+            </svg>
+        );
+
+        const Firework = ({ color, delay, left, top }) => (
+            <div className="absolute pointer-events-none" style={{ left: `${left}%`, top: `${top}%`, color }}>
+                {[...Array(8)].map((_, i) => (
+                    <div key={i} className="absolute w-1.5 h-1.5 rounded-full bg-current"
+                        style={{ transform: `rotate(${i * 45}deg) translateY(-20px)`, opacity: 0, animation: `firework-particle 1.5s ease-out ${delay}s infinite` }} />
+                ))}
+            </div>
+        );
+
+        const DancingEmoji = ({ emoji, delay, left }) => (
+            <div className="absolute bottom-[-10%] text-4xl animate-bounce-float pointer-events-none"
+                style={{ left: `${left}%`, animationDelay: `${delay}s` }}>
+                {emoji}
+            </div>
+        );
+
+        const App = () => {
+            const [theme, setTheme] = useState('light');
+            const [teamA, setTeamA] = useState('Team A');
+            const [teamB, setTeamB] = useState('Team B');
+            const [isSwapped, setIsSwapped] = useState(false);
+            const [isEditingNames, setIsEditingNames] = useState(true);
+            const [matchFormat, setMatchFormat] = useState(3);
+            const [scoreA, setScoreA] = useState(0);
+            const [scoreB, setScoreB] = useState(0);
+            const [setsA, setSetsA] = useState(0);
+            const [setsB, setSetsB] = useState(0);
+            const [servingTeam, setServingTeam] = useState('A'); 
+            const [servesThisTurn, setServesThisTurn] = useState(0); 
+            const [hasSelectedStarter, setHasSelectedStarter] = useState(false);
+            const [matchWinner, setMatchWinner] = useState(null);
+            const [setHistory, setSetHistory] = useState([]);
+
+            const isDark = theme === 'dark';
+            const CONSECUTIVE_SERVES = 4;
+
+            const resetMatch = () => {
+                setScoreA(0);
+                setScoreB(0);
+                setSetsA(0);
+                setSetsB(0);
+                setServesThisTurn(0);
+                setHasSelectedStarter(false);
+                setMatchWinner(null);
+                setSetHistory([]);
+                setIsEditingNames(true);
+            };
+
+            const handlePoint = (team, amount) => {
+                if (matchWinner || !hasSelectedStarter) return;
+                if (amount > 0) {
+                    let nextA = scoreA, nextB = scoreB, nextS = servesThisTurn, nextServ = servingTeam;
+                    if (team === 'A') nextA++; else nextB++;
+                    
+                    if (matchFormat === 3) {
+                        if (servesThisTurn + 1 >= CONSECUTIVE_SERVES) { 
+                            nextServ = servingTeam === 'A' ? 'B' : 'A'; 
+                            nextS = 0; 
+                        } else {
+                            nextS++;
+                        }
+                    } else {
+                        if (team === 'A' && servingTeam === 'B') nextServ = 'A';
+                        if (team === 'B' && servingTeam === 'A') nextServ = 'B';
+                    }
+
+                    if (Math.max(nextA, nextB) >= 25 && Math.abs(nextA - nextB) >= 2) {
+                        const winName = nextA > nextB ? teamA : teamB;
+                        const sA = nextA > nextB ? setsA + 1 : setsA;
+                        const sB = nextB > nextA ? setsB + 1 : setsB;
+                        const history = [...setHistory, { winner: winName, score: `${nextA}-${nextB}` }];
+                        
+                        setSetsA(sA); 
+                        setSetsB(sB); 
+                        setSetHistory(history);
+                        
+                        if (matchFormat === 3 && history.length === 3) {
+                            setMatchWinner(sA > sB ? teamA : teamB);
+                        } else if (matchFormat === 5 && Math.max(sA, sB) === 3) {
+                            setMatchWinner(sA > sB ? teamA : teamB);
+                        }
+                        
+                        setScoreA(0); setScoreB(0); setServesThisTurn(0); setHasSelectedStarter(false);
+                    } else { 
+                        setScoreA(nextA); setScoreB(nextB); setServesThisTurn(nextS); setServingTeam(nextServ); 
+                    }
+                } else {
+                    if (team === 'A') setScoreA(Math.max(0, scoreA - 1)); else setScoreB(Math.max(0, scoreB - 1));
+                    if (matchFormat === 3 && amount < 0) {
+                        if (servesThisTurn === 0) {
+                            setServingTeam(servingTeam === 'A' ? 'B' : 'A');
+                            setServesThisTurn(CONSECUTIVE_SERVES - 1);
+                        } else {
+                            setServesThisTurn(servesThisTurn - 1);
+                        }
+                    }
+                }
+            };
+
+            return (
+                <div className={`h-[100dvh] w-full flex flex-col transition-colors duration-300 ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'}`}>
+                    <div className={`w-full max-w-md mx-auto flex flex-col h-full shadow-2xl relative transition-colors ${isDark ? 'bg-slate-900' : 'bg-white'}`}>
+                        <header className="bg-slate-900 p-3 text-white flex justify-between items-center shrink-0 z-50">
+                            <div className="flex gap-1">
+                                <button onClick={() => setIsSwapped(!isSwapped)} className="p-2 bg-slate-800 rounded-full active:scale-95 transition-transform"><IconSwap /></button>
+                                <button onClick={() => setTheme(isDark ? 'light' : 'dark')} className="p-2 bg-slate-800 rounded-full active:scale-95 transition-transform">
+                                    {isDark ? <IconSun /> : <IconMoon />}
+                                </button>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <BontaLogo className="text-indigo-500 w-8 h-8" />
+                                <h1 className="text-lg font-black uppercase italic leading-none text-white">Bonta</h1>
+                            </div>
+                            <button onClick={() => setIsEditingNames(!isEditingNames)} className={`p-2 rounded-full transition-all ${isEditingNames ? 'bg-indigo-600' : 'bg-slate-800'}`}><IconSettings /></button>
+                        </header>
+
+                        {isEditingNames && (
+                            <div className={`absolute inset-0 z-50 p-6 flex flex-col transition-colors ${isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
+                                <div className="flex-grow flex flex-col justify-center max-w-xs mx-auto w-full gap-6">
+                                    <div className="text-center">
+                                        <BontaLogo className="w-20 h-20 mx-auto text-indigo-500 mb-4" />
+                                        <h2 className="text-2xl font-black uppercase italic">Bonta Setup</h2>
+                                        <p className="text-[10px] uppercase font-bold text-slate-400">4-Serve consecutive rule active</p>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold uppercase text-slate-400 ml-1">Team A</label>
+                                            <input type="text" value={teamA} onChange={e => setTeamA(e.target.value)} className={`w-full p-3 border-2 rounded-xl font-bold text-lg outline-none ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200 text-slate-900'}`} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold uppercase text-slate-400 ml-1">Team B</label>
+                                            <input type="text" value={teamB} onChange={e => setTeamB(e.target.value)} className={`w-full p-3 border-2 rounded-xl font-bold text-lg outline-none ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200 text-slate-900'}`} />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button onClick={() => setMatchFormat(3)} className={`py-3 rounded-xl font-bold text-xs transition-colors ${matchFormat === 3 ? 'bg-indigo-600 text-white' : (isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-400')}`}>3 Sets (Play All)</button>
+                                            <button onClick={() => setMatchFormat(5)} className={`py-3 rounded-xl font-bold text-xs transition-colors ${matchFormat === 5 ? 'bg-indigo-600 text-white' : (isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-400')}`}>Best of 5</button>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => setIsEditingNames(false)} className={`w-full py-4 rounded-2xl font-black shadow-xl active:scale-95 transition-all ${isDark ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-white'}`}><IconCheck /> Confirm</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {!hasSelectedStarter && !matchWinner && !isEditingNames && (
+                            <div className={`absolute inset-0 z-40 flex flex-col items-center justify-center p-6 transition-colors ${isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
+                                <BontaLogo className="w-16 h-16 text-indigo-500 mb-6 animate-bounce" />
+                                <h2 className="text-2xl font-black mb-1 uppercase italic">Set {setHistory.length + 1}</h2>
+                                <p className="text-xs font-bold text-slate-400 uppercase mb-8">Who starts serving?</p>
+                                <div className="grid grid-cols-1 gap-4 w-full max-w-[260px]">
+                                    <button onClick={() => { setServingTeam('A'); setHasSelectedStarter(true); }} className="py-5 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg uppercase active:scale-95 transition-transform">{teamA}</button>
+                                    <button onClick={() => { setServingTeam('B'); setHasSelectedStarter(true); }} className="py-5 bg-emerald-600 text-white rounded-2xl font-bold shadow-lg uppercase active:scale-95 transition-transform">{teamB}</button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className={`flex justify-center gap-8 py-2 border-b shrink-0 ${isDark ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50/50 border-slate-100'}`}>
+                            <div className="text-center">
+                                <p className="text-[8px] font-black uppercase opacity-50">Sets Won</p>
+                                <p className="text-2xl font-black tabular-nums">{isSwapped ? setsB : setsA}</p>
+                            </div>
+                            <div className="flex items-center text-slate-200 font-black text-sm italic pt-1">VS</div>
+                            <div className="text-center">
+                                <p className="text-[8px] font-black uppercase opacity-50">Sets Won</p>
+                                <p className="text-2xl font-black tabular-nums">{isSwapped ? setsA : setsB}</p>
+                            </div>
+                        </div>
+
+                        <main className="flex-grow flex items-center p-2 relative">
+                            <div className={`absolute left-1/2 top-4 bottom-4 w-px ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}></div>
+                            
+                            <div className="flex flex-col items-center flex-1 px-1">
+                                <div className="h-12 flex flex-col items-center justify-center">
+                                    {servingTeam === (isSwapped ? 'B' : 'A') && (
+                                        <div className="flex flex-col items-center animate-in fade-in zoom-in scale-90">
+                                            <IconVolleyball className="text-orange-500 animate-bounce" />
+                                            {matchFormat === 3 && (
+                                                <div className="flex gap-1 mt-1">
+                                                    {[...Array(CONSECUTIVE_SERVES)].map((_, i) => (
+                                                        <div key={i} className={`w-1 h-1 rounded-full ${i < servesThisTurn ? (isDark ? 'bg-slate-700' : 'bg-slate-300') : 'bg-orange-500'}`} />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                                <h2 className="text-[13px] font-bold mb-2 truncate w-full text-center">{isSwapped ? teamB : teamA}</h2>
+                                <div className={`text-6xl font-black mb-4 tabular-nums ${isSwapped ? 'text-emerald-600' : 'text-indigo-600'}`}>{isSwapped ? scoreB : scoreA}</div>
+                                <button onClick={() => handlePoint(isSwapped ? 'B' : 'A', 1)} className={`w-full py-8 text-white rounded-2xl shadow-lg active:scale-95 transition-all ${isSwapped ? 'bg-emerald-600' : 'bg-indigo-600'}`}><IconPlus /></button>
+                                <button onClick={() => handlePoint(isSwapped ? 'B' : 'A', -1)} className={`mt-2 w-full py-2 rounded-lg active:scale-95 transition-all ${isDark ? 'bg-slate-800 text-slate-500' : 'bg-slate-100 text-slate-400'}`}><IconMinus /></button>
+                            </div>
+
+                            <div className="flex flex-col items-center flex-1 px-1">
+                                <div className="h-12 flex flex-col items-center justify-center">
+                                    {servingTeam === (isSwapped ? 'A' : 'B') && (
+                                        <div className="flex flex-col items-center animate-in fade-in zoom-in scale-90">
+                                            <IconVolleyball className="text-orange-500 animate-bounce" />
+                                            {matchFormat === 3 && (
+                                                <div className="flex gap-1 mt-1">
+                                                    {[...Array(CONSECUTIVE_SERVES)].map((_, i) => (
+                                                        <div key={i} className={`w-1 h-1 rounded-full ${i < servesThisTurn ? (isDark ? 'bg-slate-700' : 'bg-slate-300') : 'bg-orange-500'}`} />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                                <h2 className="text-[13px] font-bold mb-2 truncate w-full text-center">{isSwapped ? teamA : teamB}</h2>
+                                <div className={`text-6xl font-black mb-4 tabular-nums ${isSwapped ? 'text-indigo-600' : 'text-emerald-600'}`}>{isSwapped ? scoreA : scoreB}</div>
+                                <button onClick={() => handlePoint(isSwapped ? 'A' : 'B', 1)} className={`w-full py-8 text-white rounded-2xl shadow-lg active:scale-95 transition-all ${isSwapped ? 'bg-indigo-600' : 'bg-emerald-600'}`}><IconPlus /></button>
+                                <button onClick={() => handlePoint(isSwapped ? 'A' : 'B', -1)} className={`mt-2 w-full py-2 rounded-lg active:scale-95 transition-all ${isDark ? 'bg-slate-800 text-slate-500' : 'bg-slate-100 text-slate-400'}`}><IconMinus /></button>
+                            </div>
+                        </main>
+
+                        <footer className={`border-t p-3 shrink-0 transition-colors ${isDark ? 'bg-slate-800/30 border-slate-800' : 'bg-slate-50 border-slate-100'}`}>
+                            <div className="flex gap-2 justify-center mb-3 overflow-x-auto pb-1 no-scrollbar">
+                                {setHistory.map((set, idx) => (
+                                    <div key={idx} className={`border px-2 py-1 rounded-md text-[9px] whitespace-nowrap shadow-sm ${isDark ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-white border-slate-200 text-slate-600'}`}>
+                                        <span className="font-bold mr-1 italic opacity-50">S{idx + 1}</span>
+                                        <span className="font-bold text-indigo-600">{set.score}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <button onClick={resetMatch} className={`w-full py-2.5 border rounded-lg font-bold text-[10px] flex items-center justify-center gap-1 transition-all ${isDark ? 'border-slate-700 text-slate-500' : 'border-slate-200 text-slate-400'}`}>
+                                <IconRotate /> NEW MATCH
+                            </button>
+                        </footer>
+
+                        {matchWinner && (
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden">
+                                <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-md animate-in fade-in duration-500"></div>
+
+                                <Firework color="#818cf8" delay={0.2} left={20} top={30} />
+                                <Firework color="#10b981" delay={0.8} left={80} top={20} />
+                                <Firework color="#f59e0b" delay={1.4} left={50} top={40} />
+                                
+                                <SparklingStar delay={0.1} left={15} top={15} size={24} />
+                                <SparklingStar delay={0.5} left={85} top={25} size={20} />
+                                <SparklingStar delay={1.0} left={25} top={75} size={32} />
+                                <SparklingStar delay={1.5} left={75} top={85} size={18} />
+
+                                <DancingEmoji emoji="🕺" delay={0.0} left={10} />
+                                <DancingEmoji emoji="💃" delay={1.5} left={30} />
+                                <DancingEmoji emoji="🙌" delay={0.5} left={60} />
+                                <DancingEmoji emoji="✨" delay={2.0} left={85} />
+                                <DancingEmoji emoji="🎊" delay={1.0} left={45} />
+
+                                <div className={`relative w-[90%] max-w-xs rounded-[3rem] p-8 text-center shadow-2xl animate-in zoom-in-95 duration-500 flex flex-col items-center transition-all ${isDark ? 'bg-slate-800 text-white border border-slate-700' : 'bg-white text-slate-900'}`}>
+                                    <div className="relative mb-6">
+                                        <IconTrophy size={72} className="text-yellow-500 animate-bounce" />
+                                        <div className="absolute -inset-4 bg-yellow-400/20 blur-xl rounded-full animate-pulse"></div>
+                                    </div>
+
+                                    <h2 className="text-2xl font-black mb-1 italic uppercase tracking-tighter">Bonta Winner</h2>
+                                    <p className="text-xl font-bold text-indigo-400 mb-6">{matchWinner} Wins!</p>
+
+                                    <div className={`w-full rounded-2xl py-4 mb-8 transition-all ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
+                                        <p className="text-[10px] font-bold uppercase opacity-50 mb-1">Final Standing</p>
+                                        <p className="text-3xl font-black tracking-widest">{setsA} - {setsB}</p>
+                                    </div>
+
+                                    <button onClick={resetMatch} className="w-full py-5 bg-indigo-600 text-white rounded-3xl font-black shadow-xl active:scale-95 transition-all">RESTART</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
